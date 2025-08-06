@@ -1,16 +1,18 @@
 import React from 'react'
-import { AlertTriangle, CheckCircle, Lightbulb, Heart } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Lightbulb, Heart, Sparkles } from 'lucide-react'
 
 interface AnalysisResult {
   score: number
   issues: Array<{
-    type: 'vulgar' | 'negative' | 'aggressive' | 'dismissive'
+    type: 'vulgar' | 'negative' | 'aggressive' | 'dismissive' | 'questioning' | 'impatient'
     word: string
     suggestion: string
     severity: 'high' | 'medium' | 'low'
+    context?: string
   }>
   suggestions: string[]
   mentalHealthScore: number
+  positiveAlternatives: string[]
 }
 
 interface MessageAnalysisProps {
@@ -21,12 +23,23 @@ interface MessageAnalysisProps {
 export const MessageAnalysis: React.FC<MessageAnalysisProps> = ({ content, onSuggestionApply }) => {
   const analyzeMessage = (text: string): AnalysisResult => {
     const vulgarWords = ['fuck', 'shit', 'damn', 'stupid', 'dumb', 'idiot', 'moron', 'retard', 'lame', 'suck', 'crap']
-    const negativeWords = ['hate', 'terrible', 'awful', 'worst', 'horrible', 'disgusting', 'pathetic', 'useless', 'worthless']
-    const aggressiveWords = ['must', 'should', 'need to', 'have to', 'demand', 'require', 'insist', 'force']
+    const negativeWords = ['hate', 'terrible', 'awful', 'worst', 'horrible', 'disgusting', 'pathetic', 'useless', 'worthless', 'disappointing', 'frustrated', 'annoying']
+    const aggressiveWords = ['must', 'should', 'need to', 'have to', 'demand', 'require', 'insist', 'force', 'immediately', 'urgent', 'asap']
     const dismissiveWords = ['whatever', 'obviously', 'clearly', 'just', 'simply', 'merely', 'only']
+    const questioningPatterns = [
+      { pattern: /why are you/gi, replacement: 'I understand this might be' },
+      { pattern: /why do you/gi, replacement: 'I wonder if you could help me understand' },
+      { pattern: /why don't you/gi, replacement: 'would it be possible for you to' },
+      { pattern: /why can't you/gi, replacement: 'I was hoping you might be able to' },
+      { pattern: /why haven't you/gi, replacement: 'I wanted to check if you\'ve had a chance to' },
+      { pattern: /why is this/gi, replacement: 'I\'m trying to understand why this might be' },
+      { pattern: /why take/gi, replacement: 'I understand this might take' }
+    ]
+    const impatientWords = ['forever', 'taking too long', 'slow', 'delayed', 'behind schedule', 'overdue', 'late']
 
     const issues: AnalysisResult['issues'] = []
     const suggestions: string[] = []
+    const positiveAlternatives: string[] = []
     let score = 100
     let mentalHealthScore = 100
 
@@ -39,7 +52,8 @@ export const MessageAnalysis: React.FC<MessageAnalysisProps> = ({ content, onSug
           type: 'vulgar',
           word,
           suggestion: getVulgarReplacement(word),
-          severity: 'high'
+          severity: 'high',
+          context: 'This word may be offensive in professional settings'
         })
         score -= 25
         mentalHealthScore -= 30
@@ -53,10 +67,44 @@ export const MessageAnalysis: React.FC<MessageAnalysisProps> = ({ content, onSug
           type: 'negative',
           word,
           suggestion: getNegativeReplacement(word),
-          severity: 'medium'
+          severity: 'medium',
+          context: 'Consider a more constructive approach'
         })
         score -= 15
         mentalHealthScore -= 20
+      }
+    })
+
+    // Check for aggressive questioning patterns
+    questioningPatterns.forEach(({ pattern, replacement }) => {
+      const matches = text.match(pattern)
+      if (matches) {
+        matches.forEach(match => {
+          issues.push({
+            type: 'questioning',
+            word: match,
+            suggestion: replacement,
+            severity: 'high',
+            context: 'Aggressive questioning can create defensiveness and stress'
+          })
+          score -= 20
+          mentalHealthScore -= 25
+        })
+      }
+    })
+
+    // Check for impatient language
+    impatientWords.forEach(word => {
+      if (lowerText.includes(word)) {
+        issues.push({
+          type: 'impatient',
+          word,
+          suggestion: getImpatientReplacement(word),
+          severity: 'medium',
+          context: 'This may create pressure and anxiety'
+        })
+        score -= 12
+        mentalHealthScore -= 18
       }
     })
 
@@ -67,7 +115,8 @@ export const MessageAnalysis: React.FC<MessageAnalysisProps> = ({ content, onSug
           type: 'aggressive',
           word,
           suggestion: getAggressiveReplacement(word),
-          severity: 'medium'
+          severity: 'medium',
+          context: 'Try a more collaborative approach'
         })
         score -= 10
         mentalHealthScore -= 15
@@ -81,32 +130,46 @@ export const MessageAnalysis: React.FC<MessageAnalysisProps> = ({ content, onSug
           type: 'dismissive',
           word,
           suggestion: getDismissiveReplacement(word),
-          severity: 'low'
+          severity: 'low',
+          context: 'This might sound dismissive'
         })
         score -= 5
         mentalHealthScore -= 10
       }
     })
 
-    // Generate overall suggestions
+    // Generate helpful suggestions
     if (issues.length > 0) {
-      suggestions.push('Consider using more supportive and collaborative language')
-      if (issues.some(i => i.type === 'vulgar')) {
-        suggestions.push('Replace inappropriate language with professional alternatives')
+      if (issues.some(i => i.type === 'questioning')) {
+        suggestions.push('Transform questions into supportive statements that show understanding')
+        positiveAlternatives.push('Instead of asking "why", try expressing your needs clearly and offering support')
+      }
+      if (issues.some(i => i.type === 'impatient')) {
+        suggestions.push('Acknowledge that good work takes time and offer assistance if needed')
+        positiveAlternatives.push('Express appreciation for their effort and ask how you can help')
+      }
+      if (issues.some(i => i.type === 'vulgar' || i.type === 'negative')) {
+        suggestions.push('Use neutral, professional language that focuses on solutions')
+        positiveAlternatives.push('Frame challenges as opportunities for improvement')
       }
       if (issues.some(i => i.type === 'aggressive')) {
-        suggestions.push('Use gentler phrasing to encourage collaboration rather than demand compliance')
+        suggestions.push('Replace demands with collaborative requests and explanations')
+        positiveAlternatives.push('Explain the reasoning behind requests to build understanding')
       }
       if (mentalHealthScore < 70) {
-        suggestions.push('This message might create stress or anxiety. Consider a more supportive tone')
+        suggestions.push('Consider how this message might affect the recipient\'s wellbeing')
+        positiveAlternatives.push('Add supportive language that shows you care about their success')
       }
+    } else if (score >= 80) {
+      positiveAlternatives.push('Your message has a supportive and professional tone!')
     }
 
     return {
       score: Math.max(0, score),
       issues,
       suggestions,
-      mentalHealthScore: Math.max(0, mentalHealthScore)
+      mentalHealthScore: Math.max(0, mentalHealthScore),
+      positiveAlternatives
     }
   }
 
@@ -122,7 +185,7 @@ export const MessageAnalysis: React.FC<MessageAnalysisProps> = ({ content, onSug
       'retard': 'delay',
       'lame': 'not ideal',
       'suck': 'are challenging',
-      'crap': 'low quality'
+      'crap': 'needs improvement'
     }
     return replacements[word] || 'more appropriate term'
   }
@@ -137,7 +200,10 @@ export const MessageAnalysis: React.FC<MessageAnalysisProps> = ({ content, onSug
       'disgusting': 'unacceptable',
       'pathetic': 'needs attention',
       'useless': 'not effective',
-      'worthless': 'needs improvement'
+      'worthless': 'needs improvement',
+      'disappointing': 'not meeting expectations',
+      'frustrated': 'finding this challenging',
+      'annoying': 'inconvenient'
     }
     return replacements[word] || 'more constructive term'
   }
@@ -151,9 +217,25 @@ export const MessageAnalysis: React.FC<MessageAnalysisProps> = ({ content, onSug
       'demand': 'request',
       'require': 'would appreciate',
       'insist': 'suggest',
-      'force': 'encourage'
+      'force': 'encourage',
+      'immediately': 'when convenient',
+      'urgent': 'important',
+      'asap': 'at your earliest convenience'
     }
     return replacements[word] || 'gentler alternative'
+  }
+
+  const getImpatientReplacement = (word: string): string => {
+    const replacements: Record<string, string> = {
+      'forever': 'some time',
+      'taking too long': 'taking the time needed',
+      'slow': 'thorough',
+      'delayed': 'in progress',
+      'behind schedule': 'working on the timeline',
+      'overdue': 'still pending',
+      'late': 'coming along'
+    }
+    return replacements[word] || 'more patient phrasing'
   }
 
   const getDismissiveReplacement = (word: string): string => {
@@ -170,7 +252,8 @@ export const MessageAnalysis: React.FC<MessageAnalysisProps> = ({ content, onSug
   }
 
   const applySuggestion = (originalWord: string, replacement: string) => {
-    const newContent = content.replace(new RegExp(originalWord, 'gi'), replacement)
+    const regex = new RegExp(originalWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+    const newContent = content.replace(regex, replacement)
     onSuggestionApply(newContent)
   }
 
@@ -178,22 +261,38 @@ export const MessageAnalysis: React.FC<MessageAnalysisProps> = ({ content, onSug
     let improvedContent = content
     const analysis = analyzeMessage(content)
     
+    // Apply all improvements
     analysis.issues.forEach(issue => {
-      improvedContent = improvedContent.replace(
-        new RegExp(issue.word, 'gi'), 
-        issue.suggestion
-      )
+      if (issue.type === 'questioning') {
+        // Handle questioning patterns specially
+        const regex = new RegExp(issue.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+        improvedContent = improvedContent.replace(regex, issue.suggestion)
+      } else {
+        const regex = new RegExp(issue.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+        improvedContent = improvedContent.replace(regex, issue.suggestion)
+      }
     })
 
-    // Add supportive framing
+    // Add supportive framing based on content
     if (analysis.mentalHealthScore < 70) {
-      improvedContent = `I hope you're doing well. ${improvedContent} Please let me know if you need any support with this.`
+      improvedContent = `I hope you're doing well. ${improvedContent} Please let me know if you need any support or if there's anything I can do to help.`
+    } else if (analysis.score < 80) {
+      improvedContent = `${improvedContent} Thank you for your understanding.`
     }
 
     onSuggestionApply(improvedContent)
   }
 
-  if (!content.trim()) return null
+  if (!content.trim()) {
+    return (
+      <div className="bg-gray-200 rounded-2xl p-4 shadow-neumorphism-inset">
+        <div className="text-center py-8">
+          <Lightbulb className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+          <p className="text-gray-500">Start typing your message to get AI-powered communication suggestions</p>
+        </div>
+      </div>
+    )
+  }
 
   const analysis = analyzeMessage(content)
 
@@ -233,13 +332,13 @@ export const MessageAnalysis: React.FC<MessageAnalysisProps> = ({ content, onSug
         <div className="space-y-3">
           <div className="flex items-center space-x-2 text-sm text-gray-600">
             <AlertTriangle className="w-4 h-4 text-orange-500" />
-            <span>Issues detected in your message:</span>
+            <span>Suggestions to make your message more supportive:</span>
           </div>
           
           <div className="space-y-2">
             {analysis.issues.map((issue, index) => (
               <div key={index} className="bg-gray-200 rounded-xl p-3 shadow-neumorphism">
-                <div className="flex items-center justify-between">
+                <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center space-x-2 mb-1">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -247,13 +346,16 @@ export const MessageAnalysis: React.FC<MessageAnalysisProps> = ({ content, onSug
                         issue.severity === 'medium' ? 'bg-orange-100 text-orange-700' :
                         'bg-yellow-100 text-yellow-700'
                       }`}>
-                        {issue.type}
+                        {issue.type === 'questioning' ? 'harsh questioning' : issue.type}
                       </span>
                       <span className="text-sm font-medium text-gray-700">"{issue.word}"</span>
                     </div>
-                    <p className="text-xs text-gray-500">
-                      Suggested replacement: <span className="font-medium text-gray-700">"{issue.suggestion}"</span>
+                    <p className="text-xs text-gray-500 mb-1">
+                      Try: <span className="font-medium text-gray-700">"{issue.suggestion}"</span>
                     </p>
+                    {issue.context && (
+                      <p className="text-xs text-gray-400 italic">{issue.context}</p>
+                    )}
                   </div>
                   <button
                     onClick={() => applySuggestion(issue.word, issue.suggestion)}
@@ -272,12 +374,28 @@ export const MessageAnalysis: React.FC<MessageAnalysisProps> = ({ content, onSug
         <div className="space-y-2">
           <div className="flex items-center space-x-2 text-sm text-gray-600">
             <CheckCircle className="w-4 h-4 text-blue-500" />
-            <span>Suggestions for improvement:</span>
+            <span>Communication tips:</span>
           </div>
           <ul className="space-y-1">
             {analysis.suggestions.map((suggestion, index) => (
               <li key={index} className="text-xs text-gray-500 pl-4">
                 • {suggestion}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {analysis.positiveAlternatives.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center space-x-2 text-sm text-gray-600">
+            <Sparkles className="w-4 h-4 text-purple-500" />
+            <span>Positive approach:</span>
+          </div>
+          <ul className="space-y-1">
+            {analysis.positiveAlternatives.map((alternative, index) => (
+              <li key={index} className="text-xs text-gray-500 pl-4">
+                • {alternative}
               </li>
             ))}
           </ul>
@@ -297,7 +415,7 @@ export const MessageAnalysis: React.FC<MessageAnalysisProps> = ({ content, onSug
       {analysis.score >= 80 && analysis.mentalHealthScore >= 80 && (
         <div className="flex items-center space-x-2 text-sm text-green-600 bg-green-50 rounded-xl p-2">
           <CheckCircle className="w-4 h-4" />
-          <span>Great! This message promotes respectful workplace communication.</span>
+          <span>Excellent! This message promotes respectful workplace communication.</span>
         </div>
       )}
     </div>
