@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Neumorphism Shadows */
+.shadow-neumorphism {
+  box-shadow: 
+    8px 8px 16px #BEC3C9,
+    -8px -8px 16px #FFFFFF;
+}
+
+.shadow-neumorphism-inset {
+  box-shadow: 
+    inset 6px 6px 12px #BEC3C9,
+    inset -6px -6px 12px #FFFFFF;
+}
+
+.shadow-neumorphism-pressed {
+  box-shadow: 
+    inset 4px 4px 8px #BEC3C9,
+    inset -4px -4px 8px #FFFFFF;
+}
+
+/* Line clamp utility */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
